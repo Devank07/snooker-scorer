@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Match Setup — Snooker Scoring</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=Barlow:wght@400;500&display=swap" rel="stylesheet">
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAxNVCaOyZvk69fqR-qTCyjbvE1gAbiBXE",
+    authDomain: "snooker-scorer-56573.firebaseapp.com",
+    databaseURL: "https://snooker-scorer-56573-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "snooker-scorer-56573",
+    storageBucket: "snooker-scorer-56573.firebasestorage.app",
+    messagingSenderId: "774218957368",
+    appId: "1:774218957368:web:3b2c9cc363c0627ab35ccd"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  const matchRef = ref(db, 'match');
+
+  onValue(matchRef, snap => {
+    const has = snap.val() !== null;
+    const banner = document.getElementById('active-match-banner');
+    banner.style.display = has ? 'flex' : 'none';
+    if (has) {
+      const s = snap.val();
+      document.getElementById('active-info').textContent =
+        `${s.player1.name} vs ${s.player2.name} · Frame ${s.currentFrame} · ${s.player1.frames}–${s.player2.frames}`;
+    }
+  });
+
+  window.startMatch = async function() {
+    const p1 = document.getElementById('p1').value.trim();
+    const p2 = document.getElementById('p2').value.trim();
+    const tournament = document.getElementById('tournament').value.trim();
+    const bestOf = parseInt(document.getElementById('best-of').value);
+    const breakFirst = parseInt(document.getElementById('break-first').value);
+    if (!p1 || !p2) { showError('Please enter both player names.'); return; }
+    if (p1 === p2) { showError('Players must have different names.'); return; }
+    const matchData = {
+      tournament: tournament || 'Snooker Match',
+      bestOf, currentFrame: 1, status: 'active', matchWinner: null,
+      turn: breakFirst, breakPlayer: breakFirst, currentBreak: 0,
+      breakBalls: [], redsRemaining: 15, lastFoul: null,
+      player1: { name: p1, frames: 0, score: 0 },
+      player2: { name: p2, frames: 0, score: 0 }
+    };
+    try {
+      document.getElementById('start-btn').disabled = true;
+      document.getElementById('start-btn').textContent = 'Starting...';
+      await set(matchRef, matchData);
+      showSuccess(`Match started: ${p1} vs ${p2}`);
+      document.getElementById('start-btn').textContent = '▶ Start Match';
+      document.getElementById('start-btn').disabled = false;
+    } catch(e) {
+      showError('Failed to connect to Firebase. Check your internet connection.');
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('start-btn').textContent = '▶ Start Match';
+    }
+  };
+
+  window.endMatch = async function() {
+    if (!confirm('End the current match and clear all scores?')) return;
+    await remove(matchRef);
+  };
+
+  function showError(msg) {
+    const el = document.getElementById('msg');
+    el.textContent = msg; el.className = 'msg error'; el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 4000);
+  }
+  function showSuccess(msg) {
+    const el = document.getElementById('msg');
+    el.textContent = msg; el.className = 'msg success'; el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 5000);
+  }
+</script>
+<style>
+  :root { --gold:#c9a227; --bg:#06100a; --surface:#0d2018; --surface2:#122a1c; --border:rgba(201,162,39,0.2); --text:#e8f4e0; --sub:rgba(232,244,224,0.5); --radius:10px; }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:radial-gradient(ellipse at 50% 0%,#103020 0%,#06100a 60%);min-height:100vh;color:var(--text);font-family:'Barlow',sans-serif;display:flex;flex-direction:column;align-items:center;padding:40px 20px;}
+  .top-accent{width:100%;max-width:560px;height:3px;background:linear-gradient(90deg,transparent,var(--gold),transparent);margin-bottom:40px;}
+  .logo{text-align:center;margin-bottom:36px;}
+  .logo h1{font-family:'Bebas Neue',cursive;font-size:3rem;letter-spacing:6px;color:var(--gold);text-shadow:0 0 40px rgba(201,162,39,0.3);}
+  .logo p{font-family:'Barlow Condensed';font-size:0.8rem;color:var(--sub);letter-spacing:3px;text-transform:uppercase;}
+  .card{width:100%;max-width:560px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:20px;}
+  .card-title{font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:3px;color:var(--gold);margin-bottom:20px;display:flex;align-items:center;gap:10px;}
+  .card-title::after{content:'';flex:1;height:1px;background:var(--border);}
+  .form-group{margin-bottom:18px;}
+  label{display:block;font-size:0.75rem;color:var(--sub);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-family:'Barlow Condensed';}
+  input,select{width:100%;padding:12px 16px;background:var(--surface2);border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius);color:var(--text);font-family:'Barlow',sans-serif;font-size:1rem;outline:none;transition:border-color 0.2s;}
+  input:focus,select:focus{border-color:var(--gold);}
+  input::placeholder{color:rgba(232,244,224,0.2);}
+  select option{background:#122a1c;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:500px){.two-col{grid-template-columns:1fr;}}
+  .start-btn{width:100%;padding:16px;background:linear-gradient(135deg,#1a3d1a,#0d2318);color:var(--gold);border:1.5px solid var(--gold);border-radius:var(--radius);font-family:'Bebas Neue',cursive;font-size:1.3rem;letter-spacing:4px;cursor:pointer;transition:background 0.2s,box-shadow 0.2s;box-shadow:0 4px 20px rgba(201,162,39,0.1);}
+  .start-btn:hover{background:linear-gradient(135deg,#245124,#122a1c);box-shadow:0 4px 30px rgba(201,162,39,0.25);}
+  .start-btn:disabled{opacity:0.5;cursor:not-allowed;}
+  .msg{display:none;padding:12px 16px;border-radius:var(--radius);margin-top:14px;font-size:0.9rem;}
+  .msg.error{background:rgba(192,57,43,0.15);border:1px solid rgba(192,57,43,0.4);color:#e74c3c;}
+  .msg.success{background:rgba(39,174,96,0.15);border:1px solid rgba(39,174,96,0.4);color:#27ae60;}
+  #active-match-banner{display:none;width:100%;max-width:560px;background:rgba(201,162,39,0.08);border:1px solid var(--gold);border-radius:var(--radius);padding:14px 18px;margin-bottom:20px;gap:12px;align-items:center;flex-wrap:wrap;}
+  .active-dot{width:8px;height:8px;border-radius:50%;background:#27ae60;animation:blink 1.2s infinite;flex-shrink:0;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+  #active-info{font-size:0.85rem;color:var(--gold);flex:1;font-family:'Barlow Condensed';}
+  .end-btn{padding:6px 14px;background:rgba(192,57,43,0.2);border:1px solid rgba(192,57,43,0.5);color:#e74c3c;border-radius:6px;cursor:pointer;font-size:0.8rem;font-family:'Barlow Condensed';letter-spacing:1px;}
+  .end-btn:hover{background:rgba(192,57,43,0.35);}
+  .links-card{width:100%;max-width:560px;}
+  .links-title{font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:3px;color:var(--gold);margin-bottom:14px;}
+  .link-row{display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--surface);border:1px solid rgba(255,255,255,0.06);border-radius:var(--radius);margin-bottom:10px;text-decoration:none;color:var(--text);transition:border-color 0.2s;}
+  .link-row:hover{border-color:var(--gold);}
+  .link-icon{font-size:1.3rem;}
+  .link-name{font-family:'Barlow Condensed';font-weight:600;font-size:1rem;}
+  .link-desc{font-size:0.75rem;color:var(--sub);}
+  .link-arrow{margin-left:auto;color:var(--sub);}
+  footer{margin-top:40px;text-align:center;}
+  footer p{font-size:0.7rem;color:rgba(232,244,224,0.15);letter-spacing:1px;}
+</style>
+</head>
+<body>
+<div class="top-accent"></div>
+<div class="logo">
+  <h1>🎱 Snooker Scorer</h1>
+  <p>Tournament Scoring System</p>
+</div>
+<div id="active-match-banner">
+  <div class="active-dot"></div>
+  <div id="active-info">Match in progress</div>
+  <button class="end-btn" onclick="endMatch()">End Match</button>
+</div>
+<div class="card">
+  <div class="card-title">New Match Setup</div>
+  <div class="form-group">
+    <label>Tournament / Event Name</label>
+    <input type="text" id="tournament" placeholder="e.g. Club Championship 2025">
+  </div>
+  <div class="two-col">
+    <div class="form-group">
+      <label>Player 1 Name</label>
+      <input type="text" id="p1" placeholder="First player">
+    </div>
+    <div class="form-group">
+      <label>Player 2 Name</label>
+      <input type="text" id="p2" placeholder="Second player">
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="form-group">
+      <label>Format</label>
+      <select id="best-of">
+        <option value="1">Single Frame</option>
+        <option value="3">Best of 3</option>
+        <option value="5">Best of 5</option>
+        <option value="7">Best of 7</option>
+        <option value="9" selected>Best of 9</option>
+        <option value="11">Best of 11</option>
+        <option value="13">Best of 13</option>
+        <option value="17">Best of 17</option>
+        <option value="19">Best of 19</option>
+        <option value="25">Best of 25</option>
+        <option value="35">Best of 35</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Breaks Off First</label>
+      <select id="break-first">
+        <option value="1">Player 1</option>
+        <option value="2">Player 2</option>
+      </select>
+    </div>
+  </div>
+  <button class="start-btn" id="start-btn" onclick="startMatch()">▶ Start Match</button>
+  <div class="msg" id="msg"></div>
+</div>
+<div class="links-card">
+  <div class="links-title">Open Screens</div>
+  <a class="link-row" href="referee.html" target="_blank">
+    <span class="link-icon">📱</span>
+    <div><div class="link-name">Referee Remote</div><div class="link-desc">Open on referee's phone · score balls & fouls</div></div>
+    <span class="link-arrow">↗</span>
+  </a>
+  <a class="link-row" href="scoreboard.html" target="_blank">
+    <span class="link-icon">📺</span>
+    <div><div class="link-name">Public Scoreboard</div><div class="link-desc">Viewer display · big screen · full graphics</div></div>
+    <span class="link-arrow">↗</span>
+  </a>
+  <a class="link-row" href="overlay.html" target="_blank">
+    <span class="link-icon">🎥</span>
+    <div><div class="link-name">OBS Overlay</div><div class="link-desc">Transparent overlay for streaming · add as Browser Source</div></div>
+    <span class="link-arrow">↗</span>
+  </a>
+</div>
+<footer><p>Snooker Scoring System · Powered by Firebase</p></footer>
+</body>
+</html>

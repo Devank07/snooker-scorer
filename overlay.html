@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OBS Overlay</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* TRANSPARENT — critical for OBS */
+html, body {
+  background: transparent !important;
+  width: 1920px; height: 1080px;
+  overflow: hidden;
+  font-family: 'Barlow Condensed', sans-serif;
+}
+
+#overlay {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 0 40px 28px;
+  transition: opacity 0.5s;
+}
+
+/* Table badge (top left of overlay bar) */
+.table-id-badge {
+  position: absolute;
+  top: -36px; left: 40px;
+  background: rgba(6,18,10,0.85);
+  border: 1px solid rgba(201,162,39,0.35);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  padding: 4px 16px;
+  font-family: 'Bebas Neue', cursive;
+  font-size: 0.8rem;
+  letter-spacing: 3px;
+  color: rgba(201,162,39,0.7);
+}
+
+/* Score bar */
+.score-bar {
+  display: flex;
+  align-items: stretch;
+  height: 88px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+
+.player-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: rgba(8,22,12,0.92);
+  backdrop-filter: blur(8px);
+  padding: 0 22px;
+  position: relative;
+  transition: background 0.3s;
+}
+.player-section.at-table { background: rgba(14,38,22,0.96); }
+.player-section.at-table::before {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:3px;
+  background:linear-gradient(90deg,transparent,#c9a227,transparent);
+}
+
+.p-name {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 2.1rem;
+  letter-spacing: 3px;
+  color: #e8f4e0;
+  flex: 1;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.at-table .p-name { color: #f0c040; }
+
+.p-frame {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 3.4rem;
+  color: #c9a227;
+  line-height: 1;
+  min-width: 50px;
+  text-align: center;
+}
+.p-pts {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 1.55rem;
+  font-weight: 300;
+  color: rgba(240,236,224,0.7);
+  min-width: 58px;
+  text-align: center;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255,255,255,0.1);
+  margin-left: 12px;
+}
+
+/* Center */
+.center-block {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(8px);
+  padding: 0 18px;
+  min-width: 135px;
+  gap: 2px;
+  border-left: 1px solid rgba(201,162,39,0.18);
+  border-right: 1px solid rgba(201,162,39,0.18);
+}
+.center-tournament {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 0.72rem; letter-spacing: 3px; color: #c9a227;
+  text-align: center; max-width: 115px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.center-frame {
+  font-size: 0.65rem; color: rgba(240,236,224,0.45);
+  letter-spacing: 1px; text-transform: uppercase; text-align: center;
+}
+.center-vs {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.9rem; color: rgba(255,255,255,0.18);
+}
+
+/* Break box */
+#break-box {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 10px;
+  background: rgba(6,18,10,0.88);
+  backdrop-filter: blur(8px);
+  border-radius: 6px;
+  padding: 9px 22px;
+  border-top: 2px solid #c9a227;
+  width: fit-content;
+  margin-left: auto; margin-right: auto;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+.brk-who { font-size:0.72rem; color:rgba(201,162,39,0.8); letter-spacing:2px; text-transform:uppercase; text-align:center; }
+.brk-word { font-size:0.65rem; color:rgba(240,236,224,0.35); letter-spacing:2px; text-transform:uppercase; }
+.brk-num { font-family:'Bebas Neue',cursive; font-size:3.4rem; color:white; line-height:1; }
+
+/* Century flash */
+#century-flash {
+  position: absolute;
+  bottom: 145px; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(135deg, #1a0f00, #3d2800);
+  border: 2px solid #c9a227;
+  border-radius: 8px;
+  padding: 10px 30px;
+  text-align: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.4s;
+  white-space: nowrap;
+  box-shadow: 0 0 40px rgba(201,162,39,0.45);
+}
+#century-flash.show { opacity: 1; }
+.cf-title { font-family:'Bebas Neue',cursive; font-size:1.9rem; color:#c9a227; letter-spacing:4px; }
+.cf-name { font-size:0.95rem; color:rgba(240,236,224,0.8); letter-spacing:1px; }
+</style>
+</head>
+<body>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyAxNVCaOyZvk69fqR-qTCyjbvE1gAbiBXE",
+  authDomain: "snooker-scorer-56573.firebaseapp.com",
+  databaseURL: "https://snooker-scorer-56573-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "snooker-scorer-56573",
+  storageBucket: "snooker-scorer-56573.firebasestorage.app",
+  messagingSenderId: "774218957368",
+  appId: "1:774218957368:web:3b2c9cc363c0627ab35ccd"
+});
+const db = firebase.database();
+
+const params = new URLSearchParams(window.location.search);
+const tableNum = params.get('table') || '1';
+document.getElementById('table-id-badge').textContent = 'Table ' + tableNum;
+document.title = 'OBS · Table ' + tableNum;
+
+let prevBreak = 0;
+
+db.ref('matches/table-' + tableNum).on('value', snap => {
+  const s = snap.val();
+  const overlay = document.getElementById('overlay');
+  if (!s) { overlay.style.opacity = '0'; return; }
+  overlay.style.opacity = '1';
+
+  document.getElementById('ov-tournament').textContent = s.tournament || '';
+  document.getElementById('ov-frame').textContent = 'Frame ' + s.currentFrame + ' · Best of ' + s.bestOf;
+
+  document.getElementById('p1-name').textContent = s.player1.name;
+  document.getElementById('p2-name').textContent = s.player2.name;
+  document.getElementById('p1-frames').textContent = s.player1.frames;
+  document.getElementById('p2-frames').textContent = s.player2.frames;
+  document.getElementById('p1-score').textContent = s.player1.score;
+  document.getElementById('p2-score').textContent = s.player2.score;
+
+  document.getElementById('p1-row').className = 'player-section' + (s.turn===1?' at-table':'');
+  document.getElementById('p2-row').className = 'player-section' + (s.turn===2?' at-table':'');
+
+  const brk = s.currentBreak || 0;
+  document.getElementById('brk-num').textContent = brk;
+  document.getElementById('brk-who').textContent = s.breakPlayer===1 ? s.player1.name : s.player2.name;
+  document.getElementById('break-box').style.display = brk > 0 ? 'flex' : 'none';
+
+  if (brk >= 100 && prevBreak < 100) {
+    const cf = document.getElementById('century-flash');
+    document.getElementById('cf-who').textContent = (s.breakPlayer===1 ? s.player1.name : s.player2.name);
+    cf.classList.add('show');
+    setTimeout(() => cf.classList.remove('show'), 4000);
+  }
+  prevBreak = brk;
+});
+</script>
+
+<div id="overlay" style="opacity:0">
+  <!-- Century flash -->
+  <div id="century-flash">
+    <div class="cf-title">🎱 Century Break!</div>
+    <div class="cf-name" id="cf-who"></div>
+  </div>
+
+  <!-- Break box -->
+  <div id="break-box">
+    <div>
+      <div class="brk-who" id="brk-who">Player</div>
+      <div class="brk-word">Break</div>
+    </div>
+    <div class="brk-num" id="brk-num">0</div>
+  </div>
+
+  <!-- Score bar -->
+  <div class="score-bar">
+    <div class="table-id-badge" id="table-id-badge">Table 1</div>
+
+    <div class="player-section" id="p1-row">
+      <div class="p-name" id="p1-name">Player 1</div>
+      <div class="p-frame" id="p1-frames">0</div>
+      <div class="p-pts" id="p1-score">0</div>
+    </div>
+
+    <div class="center-block">
+      <div class="center-tournament" id="ov-tournament">Tournament</div>
+      <div class="center-vs">VS</div>
+      <div class="center-frame" id="ov-frame">Frame 1</div>
+    </div>
+
+    <div class="player-section" id="p2-row" style="flex-direction:row-reverse">
+      <div class="p-name" id="p2-name" style="text-align:right">Player 2</div>
+      <div class="p-frame" id="p2-frames">0</div>
+      <div class="p-pts" id="p2-score" style="border-left:none;border-right:1px solid rgba(255,255,255,0.1);margin-left:0;margin-right:12px;padding-left:0;padding-right:12px">0</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
